@@ -1,0 +1,169 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'cognito-sample Example SAM project creating some basic user functionality
+  with Cognito.
+
+  '
+Globals:
+  Function:
+    Timeout: 3
+    Layers:
+    - Ref: BaseLayer
+    Environment:
+      Variables:
+        APP_REGION: ap-northeast-1
+        APP_LOG_LEVEL: info
+Resources:
+  RegisterCreateAccountFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: RegisterCreateAccountFunction
+      Handler: index.lambdaHandler
+      Runtime: nodejs12.x
+      Environment:
+        Variables:
+          APP_USERPOOL_CLIENT_ID:
+            Ref: 1cf37673kdsgd72jcf98bsfrec
+      Events:
+        RegisterAccount:
+          Type: Api
+          Properties:
+            Path: /account
+            Method: put
+    Metadata:
+      SamResourceId: RegisterCreateAccountFunction
+  ConfirmUserAccountFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ConfirmUserAccountFunction
+      Handler: index.lambdaHandler
+      Runtime: nodejs12.x
+      Environment:
+        Variables:
+          APP_USERPOOL_CLIENT_ID:
+            Ref: 1cf37673kdsgd72jcf98bsfrec
+      Events:
+        ConfirmAccount:
+          Type: Api
+          Properties:
+            Path: /account/confirm
+            Method: post
+    Metadata:
+      SamResourceId: ConfirmUserAccountFunction
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: LoginFunction
+      Handler: index.lambdaHandler
+      Runtime: nodejs12.x
+      Environment:
+        Variables:
+          APP_USERPOOL_CLIENT_ID:
+            Ref: 1cf37673kdsgd72jcf98bsfrec
+      Events:
+        Login:
+          Type: Api
+          Properties:
+            Path: /account/login
+            Method: post
+    Metadata:
+      SamResourceId: LoginFunction
+  FnCustomMessage:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: FnCustomMessage
+      Handler: index.handler
+      Runtime: nodejs12.x
+    Metadata:
+      SamResourceId: FnCustomMessage
+  DemoAuthenticatedFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: DemoAuthenticatedFunction
+      Handler: index.lambdaHandler
+      Runtime: nodejs12.x
+      Environment:
+        Variables:
+          APP_USERPOOL_CLIENT_ID:
+            Ref: 1cf37673kdsgd72jcf98bsfrec
+          APP_USERPOOL_ID:
+            Ref: CognitoUserPool
+      Events:
+        Login:
+          Type: Api
+          Properties:
+            Path: /demo
+            Method: get
+    Metadata:
+      SamResourceId: DemoAuthenticatedFunction
+  BaseLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: base-layer
+      Description: Dependencies for Cognito
+      ContentUri: ..\..\src\layers\base
+      CompatibleRuntimes:
+      - nodejs12.x
+      LicenseInfo: MIT
+      RetentionPolicy: Retain
+  CognitoCustomMessageInvocationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Fn::GetAtt:
+        - FnCustomMessage
+        - Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - CognitoUserPool
+        - Arn
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      LambdaConfig:
+        CustomMessage:
+          Fn::GetAtt:
+          - FnCustomMessage
+          - Arn
+      AutoVerifiedAttributes:
+      - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: false
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: false
+          TemporaryPasswordValidityDays: 100
+      Schema:
+      - AttributeDataType: String
+        Name: FullName
+      - AttributeDataType: String
+        Name: Birthday
+  1cf37673kdsgd72jcf98bsfrec:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName:
+        Fn::Sub: ${CognitoUserPool}-client
+      GenerateSecret: false
+      UserPoolId:
+        Ref: CognitoUserPool
+      ExplicitAuthFlows:
+      - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      - ALLOW_CUSTOM_AUTH
+      - ALLOW_USER_PASSWORD_AUTH
+      - ALLOW_USER_SRP_AUTH
+      - ALLOW_REFRESH_TOKEN_AUTH
+Outputs:
+  HelloWorldApi:
+    Description: API Gateway endpoint URL for Prod stage for Hello World function
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/
+  HelloWorldFunction:
+    Description: Hello World Lambda Function ARN
+    Value:
+      Fn::GetAtt:
+      - RegisterCreateAccountFunction
+      - Arn
